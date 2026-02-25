@@ -1,0 +1,37 @@
+# project-linkedin-leads-extractor-automation-bot
+
+# Sensitive data
+.env
+
+# Virtual environment
+myenv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local database
+leads_data.db
+*.db
+*.sqlite
+
+# Project specific folders
+data/
+logs/
+output/
+
+# Binaries
+*.exe
+chromedriver
+geckodriver
+
+# Output files
+*.csv
+*.log
+
+# Example environment file (DO NOT IGNORE)
+!.env.example

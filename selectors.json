@@ -1,0 +1,34 @@
+{
+    "login": {
+        "username": "username",
+        "password": "password"
+    },
+    "my_network": {
+        "connections_link": "//a[contains(@href, '/mynetwork/invite-connect/connections/')]"
+    },
+    "connections": {
+        "profile_cards": "//li[contains(@class, 'mn-connection-card')]",
+        "profile_link": "//a[contains(@href, '/in/') and not(contains(@href, 'miniProfile'))]"
+    },
+    "profile": {
+        "name": "//h1[contains(@class, 'text-heading-xlarge') or contains(@class, 'pv-top-card-section__name')] | //h2[contains(@class, 'bb19522d')]",
+        "headline": "//div[contains(@class, 'text-body-medium')] | //p[contains(@class, 'c27819ab')]",
+        "location": "//span[contains(@class, 'text-body-small inline t-black--light break-words')] | //p[contains(@class, 'bc7258b1')]",
+        "contact_info_link": "//a[@id='top-card-text-details-contact-info'] | //a[text()='Contact info']",
+        "open_to_work_badge": "//a[contains(@href, '/details/open-to-work/')] | //img[contains(@src, 'AAYQAQSOAAgAAQAAAAAAAB-zrMZEDXI2T62PSuT6kpB6qg')]"
+    },
+    "contact_info": {
+        "modal": "//div[@role='dialog']",
+        "email": "//section[contains(@class, 'ci-email')]//a",
+        "phone": "//section[contains(@class, 'ci-phone')]//span",
+        "linkedin_id": "//section[contains(@class, 'ci-enclabel')]//a"
+    },
+    "search": {
+        "result_card": "//div[@data-view-name='people-search-result']",
+        "name": ".//a[@data-view-name='search-result-lockup-title']",
+        "link": ".//a[contains(@href, '/in/')]",
+        "headline": ".//*[contains(@class, 'entity-result__primary-subtitle')]",
+        "location": ".//*[contains(@class, 'entity-result__secondary-subtitle')]",
+        "next_button": "//button[contains(@aria-label, 'Next')] | //button[.//span[text()='Next']] | //span[text()='Next']/ancestor::button | //button[contains(@class, 'pagination__button--next')]"
+    }
+}
