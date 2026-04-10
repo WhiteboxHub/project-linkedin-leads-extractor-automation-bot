@@ -60,13 +60,20 @@ class BotReporter:
         
         try:
             logger.info(f"Connecting to SMTP server at {self.server}:{self.port}...", extra={"step_name": "BotReporter"})
-            with smtplib.SMTP(self.server, self.port) as server:
-                server.starttls()
-                server.login(self.username, self.password)
-                text = msg.as_string()
-                server.sendmail(self.email_from, self.email_to, text)
-                logger.info(f"Email report sent successfully to {len(self.email_to)} recipient(s).", extra={"step_name": "BotReporter"})
-                return True
+            # If port 465, use SMTP_SSL (Implicit SSL)
+            if str(self.port) == "465":
+                with smtplib.SMTP_SSL(self.server, self.port) as server:
+                    server.login(self.username, self.password)
+                    server.send_message(msg)
+            else:
+                # Standard STARTTLS (Port 587)
+                with smtplib.SMTP(self.server, self.port) as server:
+                    server.starttls()
+                    server.login(self.username, self.password)
+                    server.send_message(msg)
+            
+            logger.info(f"Email report sent successfully to {len(self.email_to)} recipient(s).", extra={"step_name": "BotReporter"})
+            return True
         except Exception as e:
             logger.error(f"Failed to send email report: {e}", extra={"step_name": "BotReporter"}, exc_info=True)
             return False

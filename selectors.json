@@ -24,8 +24,8 @@
         "linkedin_id": "//section[contains(@class, 'ci-enclabel')]//a"
     },
     "search": {
-        "result_card": "//div[@data-view-name='people-search-result']",
-        "name": ".//a[@data-view-name='search-result-lockup-title']",
+        "result_card": "//div[.//a[contains(@href, '/in/')]]/ancestor-or-self::div[contains(@class, 'result') or contains(@class, 'item') or @data-view-name][1] | //li[.//a[contains(@href, '/in/')]] | //*[contains(@class, 'entity-result')] | //*[contains(@class, 'search-result')]",
+        "name": ".//span[contains(@class, 'entity-result__title-text')]//a | .//a[contains(@data-view-name, 'search-result-lockup-title')] | .//div[contains(@class, 'entity-result__title-line')]//a | .//div[contains(@class, 't-roman')]//a",
         "link": ".//a[contains(@href, '/in/')]",
         "headline": ".//*[contains(@class, 'entity-result__primary-subtitle')]",
         "location": ".//*[contains(@class, 'entity-result__secondary-subtitle')]",

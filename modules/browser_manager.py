@@ -69,6 +69,16 @@ class BrowserManager:
             
         except Exception as e:
             logger.warning(f"Undetected Chromedriver failed: {e}")
+            if "Connection refused" in str(e) or "reach host" in str(e).lower():
+                logger.info("Retrying Undetected Chrome with headless version check disabled...")
+                try:
+                    self.driver = uc.Chrome(options=chrome_options, version_main=version, use_subprocess=True, driver_executable_path=None)
+                    self._apply_stealth()
+                    logger.info("Undetected Chrome launched successfully on second attempt!")
+                    return self
+                except Exception as e2:
+                    logger.warning(f"Second Undetected attempt failed: {e2}")
+            
             logger.info("Falling back to standard Selenium ChromeDriver...")
 
         # 2. Fallback to Standard Selenium
