@@ -3,6 +3,9 @@ import random
 import re
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException
 from modules.logger import logger
 from modules.processor import ProcessorModule
 import config
@@ -59,29 +62,101 @@ class LinkedInScraper:
 
     def extract_leads_from_page(self):
         """Extract lead data directly from search result cards (raw leads)."""
-        # Scroll to load everything on page
+        # 1. Immediate small scroll to trigger LinkedIn's lazy-loading
+        self.driver.execute_script("window.scrollTo(0, 400);")
+        time.sleep(1)
+        
+        # 2. Wait for at least one card to be present
+        card_selector = config.SELECTORS['search']['result_card']
+        try:
+            WebDriverWait(self.driver, 10).until(
+                EC.presence_of_element_located((By.XPATH, card_selector))
+            )
+        except TimeoutException:
+            # Diagnostic info
+            curr_url = self.driver.current_url
+            all_links = self.driver.find_elements(By.XPATH, "//a[contains(@href, '/in/')]")
+            logger.warning(f"Timed out waiting for search result cards. URL: {curr_url} | Profile links found: {len(all_links)}")
+            
+            # FALLBACK: If we find profile links but the "card" selector is failing, use the links as "cards"
+            if len(all_links) > 0:
+                logger.info("Using detected profile links as extraction points (Fallback Mode).")
+                # We filter to unique profile paths and use their parents as cards
+                filtered_links = []
+                seen_hrefs = set()
+                for lnk in all_links:
+                    href = lnk.get_attribute('href')
+                    if href and "/in/" in href and "miniProfile" not in href:
+                        base_href = href.split('?')[0]
+                        if base_href not in seen_hrefs:
+                            seen_hrefs.add(base_href)
+                            filtered_links.append(lnk)
+                
+                # Use the parent/ancestor of the link as our 'card' so we can find sub-elements
+                cards = []
+                for lnk in filtered_links:
+                    try:
+                        # Try to find a reasonably sized parent container (li or div)
+                        parent = lnk.find_element(By.XPATH, "./ancestor::li[1] | ./ancestor::div[contains(@class, 'result') or contains(@class, 'item')][1] | ./following-sibling::* | ./..")
+                        cards.append(parent)
+                    except:
+                        cards.append(lnk) # Absolute fallback
+                
+                if not cards:
+                    return []
+                logger.info(f"Fallback Mode: Processing {len(cards)} profile containers.")
+            else:
+                return []
+        else:
+            # Standard path: cards were found
+            cards = self.driver.find_elements(By.XPATH, card_selector)
+            logger.info(f"Found {len(cards)} result cards on page.")
+
+        # 3. Final Scroll to ensure bottom results are loaded
         self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
         time.sleep(2)
         
         leads = []
         try:
-            cards = self.driver.find_elements(By.XPATH, config.SELECTORS['search']['result_card'])
-            logger.info(f"Found {len(cards)} result cards on page.")
-            
             for card in cards:
                 try:
                     # 1. Profile Link & ID
-                    link_elem = card.find_element(By.XPATH, config.SELECTORS['search']['link'])
-                    profile_url = link_elem.get_attribute('href').split('?')[0]
+                    try:
+                        # Find all links and pick the first one that points to a profile
+                        links = card.find_elements(By.XPATH, ".//a[contains(@href, '/in/')]")
+                        profile_url = ""
+                        for lnk in links:
+                            href = lnk.get_attribute('href')
+                            if href and "/in/" in href and "miniProfile" not in href:
+                                profile_url = href.split('?')[0]
+                                break
+                        
+                        if not profile_url:
+                            continue # Skip if no profile URL found
+                    except:
+                        continue
+                    
                     profile_id = profile_url.replace("https://www.linkedin.com/in/", "").strip("/")
                     
                     # 2. Name
                     name = ""
                     try:
                         name_elem = card.find_element(By.XPATH, config.SELECTORS['search']['name'])
-                        name = name_elem.text.strip().split('\n')[0] # Avoid multi-line names
-                    except: pass
+                        name = name_elem.text.strip().split('\n')[0]
+                    except:
+                        # Fallback: Use the text of the profile link itself
+                        try:
+                            name = card.find_element(By.XPATH, ".//span[contains(@class, 'entity-result__title-text')]").text.strip().split('\n')[0]
+                        except:
+                            try:
+                                name = card.find_element(By.XPATH, ".//a[contains(@href, '/in/')]").text.strip().split('\n')[0]
+                            except: pass
                     
+                    # CLEAN NAME: Remove connectivity indicators like "• 3rd+" or "• 2nd"
+                    if name:
+                        name = re.sub(r'\s*•\s*\d*(?:st|nd|rd|th)?\+?\s*$', '', name).strip()
+                        name = name.replace('•', '').strip()
+
                     # 3. Headline/Profession & Location
                     headline = ""
                     location = ""
@@ -89,15 +164,38 @@ class LinkedInScraper:
                         # Improved extraction by targeting standard classes
                         # 1. Try primary-subtitle for headline
                         try:
-                            h_elem = card.find_element(By.XPATH, ".//*[contains(@class, 'primary-subtitle')]")
-                            headline = h_elem.text.strip().replace('\n', ' ')
+                            h_elements = card.find_elements(By.XPATH, ".//*[contains(@class, 'primary-subtitle')] | .//*[contains(@class, 'entity-result__primary-subtitle')]")
+                            for h in h_elements:
+                                txt = h.text.strip()
+                                if txt and len(txt) > 5:
+                                    headline = txt.replace('\n', ' ')
+                                    break
                         except: pass
                         
                         # 2. Try secondary-subtitle for location
                         try:
-                            l_elem = card.find_element(By.XPATH, ".//*[contains(@class, 'secondary-subtitle')]")
-                            location = l_elem.text.strip().replace('\n', ' ')
+                            l_elements = card.find_elements(By.XPATH, ".//*[contains(@class, 'secondary-subtitle')] | .//*[contains(@class, 'entity-result__secondary-subtitle')]")
+                            for l in l_elements:
+                                txt = l.text.strip()
+                                # Validation: Real locations are usually short, NOT technical titles, and NOT the candidate's name
+                                if txt and len(txt) < 60 and not any(word in txt.lower() for word in ['certified', 'specialist', 'expert', 'engineer', 'developer']):
+                                    if name and txt.lower() == name.lower():
+                                        continue
+                                    location = txt.replace('\n', ' ')
+                                    break
                         except: pass
+
+                        # Fallback: Search for any text containing "Area" or "United States"
+                        if not location:
+                            try:
+                                possible_locs = card.find_elements(By.XPATH, ".//div | .//span | .//p")
+                                for loc in possible_locs:
+                                    t = loc.text.strip()
+                                    if any(key in t for key in ['Area', 'Region', 'United States', 'India', 'Canada', 'UK']):
+                                        if len(t) < 50:
+                                            location = t
+                                            break
+                            except: pass
 
                         # Fallback: Find all p tags inside the info div if classes failed
                         if not headline or not location:
@@ -133,6 +231,18 @@ class LinkedInScraper:
                     # Clean up: Ensure headline doesn't contain the name accidentally
                     if headline and name and (name.lower() in headline.lower() and len(headline) < len(name) + 5):
                         headline = ""
+
+                    # 4. Fallback: Parse location from headline if empty
+                    if not location and headline:
+                        # Look for "City, ST" or common patterns
+                        city_match = re.search(r'([A-Z][a-z]+(?: [A-Z][a-z]+)*),? ([A-Z]{2})', headline)
+                        if city_match:
+                            location = city_match.group(0)
+                        elif " - " in headline:
+                            # Many people put their location after a dash
+                            parts = [p.strip() for p in headline.split(" - ")]
+                            if len(parts) > 1 and len(parts[-1]) < 30:
+                                location = parts[-1]
 
                     # 5. Partial Data Object
                     lead_data = {

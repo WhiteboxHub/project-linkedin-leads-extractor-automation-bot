@@ -10,6 +10,7 @@ from modules.bot_reporter import BotReporter
 import config
 
 def main():
+    leads_found = 0
     logger.info("Starting LinkedIn Leads Extractor...")
     
     # Initialize components

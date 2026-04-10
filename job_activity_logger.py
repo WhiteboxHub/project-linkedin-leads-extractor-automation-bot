@@ -162,11 +162,28 @@ class JobActivityLogger:
             if email and "@" not in email:
                 email = None
             
-            # Stringify the lead data for the notes field as requested
+            # Stringify the lead data for the notes field
+            profession = lead.get('Profession', '').lower()
+            location_val = lead.get('Location', '')
+            status_note = ""
+            
+            # Status keyword check
+            if "open to work" in profession or "available to work" in profession:
+                status_note = "status: open to work | "
+            elif "available" in profession:
+                status_note = "status: available | "
+            
+            # Location info from headline check
+            if location_val and location_val.lower() in profession:
+                status_note += f"location_info: {location_val} | "
+
             notes = lead.get('Notes', '')
             if not notes:
                 # Include the raw lead data as JSON in notes
-                notes = json.dumps(lead, ensure_ascii=False)
+                raw_json = json.dumps(lead, ensure_ascii=False)
+                notes = f"{status_note}{raw_json}"
+            else:
+                notes = f"{status_note}{notes}"
 
             payload = {
                 "full_name": lead.get('Full Name', 'Unknown')[:150],
