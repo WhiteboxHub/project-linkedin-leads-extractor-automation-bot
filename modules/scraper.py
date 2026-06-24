@@ -66,21 +66,85 @@ class LinkedInScraper:
         leads = []
         try:
             cards = self.driver.find_elements(By.XPATH, config.SELECTORS['search']['result_card'])
-            logger.info(f"Found {len(cards)} result cards on page.")
+            logger.info(f"Found {len(cards)} result cards using selectors.")
             
+            # FALLBACK: If standard cards aren't found, just grab all valid profile links
+            if len(cards) == 0:
+                logger.info("Falling back to raw link extraction...")
+                xpath = "//*[@role='main']//a[contains(@href, '/in/') and not(contains(@href, '/miniProfile')) and not(contains(@href, '/overlay/'))] | //main//a[contains(@href, '/in/') and not(contains(@href, '/miniProfile')) and not(contains(@href, '/overlay/'))] | //div[contains(@class, 'search')]//a[contains(@href, '/in/') and not(contains(@href, '/miniProfile')) and not(contains(@href, '/overlay/'))]"
+                links = self.driver.find_elements(By.XPATH, xpath)
+                seen_urls = set()
+                
+                for link in links:
+                    try:
+                        href = link.get_attribute('href').split('?')[0]
+                        if not href or href in seen_urls or "/in/" not in href:
+                            continue
+                        
+                        seen_urls.add(href)
+                        profile_id = href.replace("https://www.linkedin.com/in/", "").strip("/")
+                        
+                        # Skeleton lead (rest will be filled when visiting profile)
+                        leads.append({
+                            "Full Name": "Pending...",
+                            "Location": "",
+                            "Profession": "",
+                            "LinkedIn ID": profile_id,
+                            "Profile URL": href,
+                            "Work Status": "Unknown",
+                            "Email": "",
+                            "Phone": ""
+                        })
+                    except:
+                        pass
+                
+                logger.info(f"Found {len(leads)} raw profile links via fallback.")
+                return leads
+
+            # Standard card extraction
             for card in cards:
                 try:
-                    # 1. Profile Link & ID
-                    link_elem = card.find_element(By.XPATH, config.SELECTORS['search']['link'])
-                    profile_url = link_elem.get_attribute('href').split('?')[0]
-                    profile_id = profile_url.replace("https://www.linkedin.com/in/", "").strip("/")
-                    
-                    # 2. Name
+                    # 1. Name and Profile Link
                     name = ""
+                    profile_url = ""
+                    
+                    # Try title link first (most accurate)
                     try:
-                        name_elem = card.find_element(By.XPATH, config.SELECTORS['search']['name'])
-                        name = name_elem.text.strip().split('\n')[0] # Avoid multi-line names
-                    except: pass
+                        name_elem = card.find_element(By.XPATH, ".//span[contains(@class, 'entity-result__title-text')]//a[contains(@href, '/in/')]")
+                        name = name_elem.text.strip().split('\n')[0]
+                        profile_url = name_elem.get_attribute('href').split('?')[0]
+                    except:
+                        pass
+                        
+                    # Fallback to lockup title
+                    if not profile_url:
+                        try:
+                            name_elem = card.find_element(By.XPATH, ".//a[@data-view-name='search-result-lockup-title']")
+                            name = name_elem.text.strip().split('\n')[0]
+                            profile_url = name_elem.get_attribute('href').split('?')[0]
+                        except:
+                            pass
+                            
+                    # Fallback to any /in/ link inside the card that has text
+                    if not profile_url:
+                        try:
+                            links = card.find_elements(By.XPATH, ".//a[contains(@href, '/in/') and not(contains(@href, '/miniProfile')) and not(contains(@href, '/overlay/'))]")
+                            for link in links:
+                                if link.text.strip():
+                                    name = link.text.strip().split('\n')[0]
+                                    profile_url = link.get_attribute('href').split('?')[0]
+                                    break
+                            # If no text links, just take the first one
+                            if not profile_url and links:
+                                profile_url = links[0].get_attribute('href').split('?')[0]
+                        except:
+                            pass
+                            
+                    if not profile_url:
+                        logger.warning("Could not find profile URL in card.")
+                        continue
+                        
+                    profile_id = profile_url.replace("https://www.linkedin.com/in/", "").strip("/")
                     
                     # 3. Headline/Profession & Location
                     headline = ""
@@ -146,11 +210,11 @@ class LinkedInScraper:
                         "Phone": ""  
                     }
                     
-                    if name and profile_url:
-                        logger.info(f"Captured: {name} | Location: {location} | Profession: {headline}")
+                    if profile_url:
+                        logger.info(f"Captured Profile URL: {profile_url}")
                         leads.append(lead_data)
                     else:
-                        logger.debug(f"Skipping incomplete card: Name={name}, URL={profile_url}")
+                        logger.debug(f"Skipping incomplete card (no URL found)")
                         
                 except Exception as e:
                     logger.debug(f"Error parsing result card: {e}")
@@ -217,17 +281,40 @@ class LinkedInScraper:
 
         # Basic data extraction
         location_text = self._safe_get_text(config.SELECTORS['profile']['location'])
-        is_usa = "united states" in location_text.lower() or "usa" in location_text.lower()
-        is_open_to_work = self.bm.find_element(config.SELECTORS['profile']['open_to_work_badge']) is not None
+        headline = self._safe_get_text(config.SELECTORS['profile']['headline'])
+        
+        # Broaden USA check to include states and regions since LinkedIn omits "United States" sometimes
+        location_lower = location_text.lower()
+        usa_identifiers = [
+            "united states", "usa", "us", "bay area", "silicon valley", "greater", 
+            "alabama", "alaska", "arizona", "arkansas", "california", "colorado", "connecticut", 
+            "delaware", "florida", "georgia", "hawaii", "idaho", "illinois", "indiana", "iowa", 
+            "kansas", "kentucky", "louisiana", "maine", "maryland", "massachusetts", "michigan", 
+            "minnesota", "mississippi", "missouri", "montana", "nebraska", "nevada", "new hampshire", 
+            "new jersey", "new mexico", "new york", "north carolina", "north dakota", "ohio", 
+            "oklahoma", "oregon", "pennsylvania", "rhode island", "south carolina", "south dakota", 
+            "tennessee", "texas", "utah", "vermont", "virginia", "washington", "west virginia", 
+            "wisconsin", "wyoming"
+        ]
+        is_usa = any(loc in location_lower for loc in usa_identifiers)
+        
+        is_open_to_work_badge = self.bm.find_element(config.SELECTORS['profile']['open_to_work_badge']) is not None
+        is_open_to_work = is_open_to_work_badge or ("open to work" in headline.lower()) or ("looking for" in headline.lower())
         
         if config.OPEN_TO_WORK_ONLY and not is_open_to_work:
+            logger.debug(f"Skipping profile: Not open to work.")
             return None
 
-        if not is_usa:
+        if not is_usa and location_text: # Only skip if location is actually found and not USA
+            logger.debug(f"Skipping profile due to location not matching USA criteria: {location_text}")
             return None
 
         name = self._safe_get_text(config.SELECTORS['profile']['name'])
-        headline = self._safe_get_text(config.SELECTORS['profile']['headline'])
+        if not name:
+            try:
+                name = self.driver.find_element(By.XPATH, "//h1").text.strip()
+            except: pass
+            
         linkedin_id = profile_url.replace("https://www.linkedin.com/in/", "").strip("/")
         
         contact_info = self._get_contact_info()
@@ -243,6 +330,19 @@ class LinkedInScraper:
             "Profile URL": profile_url
         }
         
+        if name:
+            lead_data["Full Name"] = name
+        if location_text:
+            lead_data["Location"] = location_text
+        if headline:
+            lead_data["Profession"] = headline
+            lead_data["Work Status"] = self.processor.extract_work_status(headline)
+            
+        if contact_info.get('Email'):
+            lead_data["Email"] = contact_info['Email']
+        if contact_info.get('Phone'):
+            lead_data["Phone"] = contact_info['Phone']
+            
         return lead_data
 
     def _safe_get_text(self, xpath):
@@ -266,7 +366,12 @@ class LinkedInScraper:
                 try:
                     email_elem = self.bm.find_element(config.SELECTORS['contact_info']['email'], timeout=5)
                     if email_elem:
-                        data['Email'] = email_elem.text.strip()
+                        email_text = email_elem.text.strip()
+                        if not email_text:
+                            href = email_elem.get_attribute("href")
+                            if href and "mailto:" in href:
+                                email_text = href.replace("mailto:", "")
+                        data['Email'] = email_text
                 except: pass
 
                 # 3. Extract Phone

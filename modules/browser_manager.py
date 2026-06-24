@@ -16,18 +16,19 @@ from modules.metrics_manager import MetricsTracker
 class BrowserManager:
     """Manages the Chrome Browser instance using undetected_chromedriver."""
     
-    def __init__(self):
+    def __init__(self, chrome_profile=None):
         self.driver = None
         self.chrome_profile_name = config.CHROME_PROFILE_NAME
+        self.chrome_profile = chrome_profile if chrome_profile else config.CHROME_PROFILE_PATH
         self.metrics = MetricsTracker()
         
     def is_chrome_running_with_profile(self):
         """Check if Chrome is already running with the configured profile."""
-        if not config.CHROME_PROFILE_PATH:
+        if not self.chrome_profile:
             return False
             
         try:
-            target_path = os.path.normpath(config.CHROME_PROFILE_PATH).lower()
+            target_path = os.path.normpath(self.chrome_profile).lower()
             for proc in psutil.process_iter(['name', 'cmdline']):
                 try:
                     name = proc.info.get('name')
@@ -56,7 +57,7 @@ class BrowserManager:
             self._configure_options(chrome_options)
             
             # Check for existing instance
-            if config.CHROME_PROFILE_PATH and self.is_chrome_running_with_profile():
+            if self.chrome_profile and self.is_chrome_running_with_profile():
                 logger.error("ALREADY RUNNING: Chrome is already using the selected profile. Please CLOSE ALL Chrome windows.")
                 import sys
                 sys.exit(1)
@@ -105,9 +106,9 @@ class BrowserManager:
         options.add_argument("--ignore-certificate-errors")
         options.add_argument("--disable-popup-blocking")
         
-        if config.CHROME_PROFILE_PATH:
+        if self.chrome_profile:
             logger.info(f"Using Chrome profile: {self.chrome_profile_name}")
-            options.add_argument(f"--user-data-dir={config.CHROME_PROFILE_PATH}")
+            options.add_argument(f"--user-data-dir={self.chrome_profile}")
             options.add_argument(f"--profile-directory={self.chrome_profile_name}")
 
     def _apply_stealth(self):
