@@ -96,8 +96,12 @@ class LinkedInLeadsBot:
                     
                     full_profile_data = self.scraper.scrape_profile(profile_url)
                     if full_profile_data:
-                        # Update lead_data with the accurate profile data
-                        lead_data.update(full_profile_data)
+                        # Update lead_data with the accurate profile data, preserving existing non-empty values
+                        for key, val in full_profile_data.items():
+                            if val:
+                                lead_data[key] = val
+                            elif key not in lead_data:
+                                lead_data[key] = val
                     else:
                         logger.warning(f"Failed to scrape profile details or candidate not in USA: {profile_url}")
                         continue

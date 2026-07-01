@@ -59,9 +59,11 @@ class LinkedInScraper:
 
     def extract_leads_from_page(self):
         """Extract lead data directly from search result cards (raw leads)."""
-        # Scroll to load everything on page
-        self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(2)
+        # Scroll to load everything on page humanly
+        self.bm.human_scroll((400, 800))
+        self.bm.human_mouse_move()
+        self.bm.human_scroll((800, 1600))
+        time.sleep(random.uniform(1.5, 3.0))
         
         leads = []
         try:
@@ -244,10 +246,14 @@ class LinkedInScraper:
                     logger.info("Next button is disabled. Reached end of results.")
                     return False
 
-                # 2. Strategic Scrolling
-                # Scroll to button and a bit more to ensure it's not covered by footer
+                # 2. Strategic Scrolling and hover
                 self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", next_button)
-                time.sleep(1.5)
+                time.sleep(random.uniform(0.8, 1.5))
+                try:
+                    from selenium.webdriver.common.action_chains import ActionChains
+                    ActionChains(self.driver).move_to_element(next_button).perform()
+                    time.sleep(random.uniform(0.3, 0.8))
+                except: pass
                 
                 # 3. Try standard click first
                 try:
@@ -257,7 +263,7 @@ class LinkedInScraper:
                     self.driver.execute_script("arguments[0].click();", next_button)
                 
                 logger.info("Successfully clicked Next page.")
-                time.sleep(5) # Wait for page to load
+                time.sleep(random.uniform(4.0, 6.0)) # Wait for page to load
                 return True
             else:
                 logger.warning("Next button not found on page.")
@@ -270,14 +276,20 @@ class LinkedInScraper:
         """Navigate to profile and extract contact information."""
         logger.info(f"Visiting profile for contact info: {profile_url}")
         self.bm.navigate(profile_url)
-        time.sleep(random.uniform(3, 5))
+        time.sleep(random.uniform(1.5, 3.0))
+        self.bm.human_scroll((100, 300))
+        self.bm.human_mouse_move()
+        time.sleep(random.uniform(1.5, 3.0))
         return self._get_contact_info()
 
     def scrape_profile(self, profile_url):
         """Full profile extraction (Legacy/Fallback)."""
         self.metrics.increment('leads_seen')
         self.bm.navigate(profile_url)
-        time.sleep(random.uniform(3, 5))
+        time.sleep(random.uniform(1.5, 3.0))
+        self.bm.human_scroll((100, 300))
+        self.bm.human_mouse_move()
+        time.sleep(random.uniform(1.5, 3.0))
 
         # Basic data extraction
         location_text = self._safe_get_text(config.SELECTORS['profile']['location'])
@@ -317,6 +329,13 @@ class LinkedInScraper:
             
         linkedin_id = profile_url.replace("https://www.linkedin.com/in/", "").strip("/")
         
+        # Last resort fallback: generate name from LinkedIn ID (e.g. john-doe-12345 -> John Doe)
+        if not name and linkedin_id:
+            clean_id = re.sub(r'-\d+$', '', linkedin_id)
+            parts = clean_id.split('-')
+            if len(parts) > 0 and all(p.isalnum() for p in parts):
+                name = " ".join(p.capitalize() for p in parts)
+        
         contact_info = self._get_contact_info()
         
         lead_data = {
@@ -345,12 +364,22 @@ class LinkedInScraper:
             
         return lead_data
 
-    def _safe_get_text(self, xpath):
-        try:
-            elem = self.bm.find_element(xpath)
-            return elem.text.strip() if elem else ""
-        except:
+    def _safe_get_text(self, xpath_selector):
+        if not xpath_selector:
             return ""
+        # Split by '|' to process xpaths sequentially for true priority/fallback order
+        xpaths = [x.strip() for x in xpath_selector.split('|')]
+        for xpath in xpaths:
+            try:
+                elements = self.driver.find_elements(By.XPATH, xpath)
+                for elem in elements:
+                    if elem.is_displayed():
+                        text = elem.text.strip()
+                        if text:
+                            return text
+            except Exception as e:
+                logger.debug(f"Error checking xpath {xpath}: {e}")
+        return ""
 
     def _get_contact_info(self):
         """Click 'Contact info' and extract data."""
@@ -359,8 +388,15 @@ class LinkedInScraper:
             # 1. Click the link
             contact_link = self.bm.find_element(config.SELECTORS['profile']['contact_info_link'])
             if contact_link:
+                # Humanize hover before clicking
+                try:
+                    from selenium.webdriver.common.action_chains import ActionChains
+                    ActionChains(self.driver).move_to_element(contact_link).perform()
+                    time.sleep(random.uniform(0.5, 1.2))
+                except: pass
+                
                 contact_link.click()
-                time.sleep(3)  # Wait for modal animation
+                time.sleep(random.uniform(2.5, 4.0))  # Wait for modal animation
                 
                 # 2. Extract Email
                 try:

@@ -11,7 +11,7 @@
         "profile_link": "//a[contains(@href, '/in/') and not(contains(@href, 'miniProfile'))]"
     },
     "profile": {
-        "name": "//h1 | //h1[contains(@class, 'text-heading-xlarge')] | //h1[contains(@class, 'top-card-layout__title')] | //h2[contains(@class, 'bb19522d')]",
+        "name": "//h1[contains(@class, 'text-heading-xlarge')] | //h1[contains(@class, 'top-card-layout__title')] | //h2[contains(@class, 'bb19522d')] | //main//h1 | //h1",
         "headline": "//div[contains(@class, 'text-body-medium')] | //div[contains(@class, 'top-card-layout__headline')] | //p[contains(@class, 'c27819ab')]",
         "location": "//span[contains(@class, 'text-body-small') and contains(@class, 'break-words')] | //div[contains(@class, 'pv-text-details__left-panel')]/span[1] | //span[contains(@class, 'top-card__subline-item')]",
         "contact_info_link": "//a[@id='top-card-text-details-contact-info'] | //a[contains(@href, '/overlay/contact-info/')] | //a[text()='Contact info']",
