@@ -22,6 +22,7 @@ SELECTED_CANDIDATE_ID = os.getenv('SELECTED_CANDIDATE_ID', '0')
 CHROME_PROFILE_PATH = os.getenv('CHROME_PROFILE_PATH')
 CHROME_PROFILE_NAME = os.getenv('CHROME_PROFILE_NAME', 'Default')
 CHROME_VERSION = os.getenv('CHROME_VERSION') # Leave empty for auto-detection
+USE_UC = os.getenv('USE_UC', 'True').lower() == 'true'
 
 # LinkedIn URLs
 URLS = {

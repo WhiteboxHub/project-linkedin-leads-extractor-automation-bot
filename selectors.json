@@ -11,24 +11,24 @@
         "profile_link": "//a[contains(@href, '/in/') and not(contains(@href, 'miniProfile'))]"
     },
     "profile": {
-        "name": "//h1[contains(@class, 'text-heading-xlarge') or contains(@class, 'pv-top-card-section__name')] | //h2[contains(@class, 'bb19522d')]",
-        "headline": "//div[contains(@class, 'text-body-medium')] | //p[contains(@class, 'c27819ab')]",
-        "location": "//span[contains(@class, 'text-body-small inline t-black--light break-words')] | //p[contains(@class, 'bc7258b1')]",
-        "contact_info_link": "//a[@id='top-card-text-details-contact-info'] | //a[text()='Contact info']",
-        "open_to_work_badge": "//a[contains(@href, '/details/open-to-work/')] | //img[contains(@src, 'AAYQAQSOAAgAAQAAAAAAAB-zrMZEDXI2T62PSuT6kpB6qg')]"
+        "name": "//h1[contains(@class, 'text-heading-xlarge')] | //h1[contains(@class, 'top-card-layout__title')] | //h2[contains(@class, 'bb19522d')] | //main//h1 | //h1",
+        "headline": "//div[contains(@class, 'text-body-medium')] | //div[contains(@class, 'top-card-layout__headline')] | //p[contains(@class, 'c27819ab')]",
+        "location": "//span[contains(@class, 'text-body-small') and contains(@class, 'break-words')] | //div[contains(@class, 'pv-text-details__left-panel')]/span[1] | //span[contains(@class, 'top-card__subline-item')]",
+        "contact_info_link": "//a[@id='top-card-text-details-contact-info'] | //a[contains(@href, '/overlay/contact-info/')] | //a[text()='Contact info']",
+        "open_to_work_badge": "//main//section[.//text()[contains(., 'Open to work')]] | //a[contains(@href, '/details/open-to-work/')] | //img[contains(@src, 'AAYQAQSOAAgAAQAAAAAAAB-zrMZEDXI2T62PSuT6kpB6qg')]"
     },
     "contact_info": {
-        "modal": "//div[@role='dialog']",
-        "email": "//section[contains(@class, 'ci-email')]//a",
-        "phone": "//section[contains(@class, 'ci-phone')]//span",
-        "linkedin_id": "//section[contains(@class, 'ci-enclabel')]//a"
+        "modal": "//div[@role='dialog'] | //div[contains(@class, 'pv-contact-info')]",
+        "email": "//section[contains(@class, 'ci-email')]//a | //a[contains(@href, 'mailto:')]",
+        "phone": "//section[contains(@class, 'ci-phone')]//span[contains(@dir, 'ltr')] | //section[contains(@class, 'ci-phone')]//span[1]",
+        "linkedin_id": "//section[contains(@class, 'ci-vanity-url')]//a | //section[contains(@class, 'ci-enclabel')]//a | //a[contains(@href, 'linkedin.com/in/')]"
     },
     "search": {
-        "result_card": "//div[@data-view-name='people-search-result']",
-        "name": ".//a[@data-view-name='search-result-lockup-title']",
+        "result_card": "//div[@data-view-name='people-search-result'] | //li[contains(@class, 'reusable-search__result-container')]",
+        "name": ".//a[@data-view-name='search-result-lockup-title'] | .//span[contains(@class, 'entity-result__title-text')]//a | .//a[contains(@href, '/in/') and .//span[@dir='ltr']] | .//a[contains(@href, '/in/')]",
         "link": ".//a[contains(@href, '/in/')]",
-        "headline": ".//*[contains(@class, 'entity-result__primary-subtitle')]",
-        "location": ".//*[contains(@class, 'entity-result__secondary-subtitle')]",
+        "headline": ".//*[contains(@class, 'entity-result__primary-subtitle')] | .//div[contains(@class, 'entity-result__primary-subtitle')] | .//div[contains(@class, 't-14 t-black t-normal')]",
+        "location": ".//*[contains(@class, 'entity-result__secondary-subtitle')] | .//div[contains(@class, 'entity-result__secondary-subtitle')] | .//div[contains(@class, 't-14 t-black--light t-normal')]",
         "next_button": "//button[contains(@aria-label, 'Next')] | //button[.//span[text()='Next']] | //span[text()='Next']/ancestor::button | //button[contains(@class, 'pagination__button--next')]"
     }
 }
