@@ -59,28 +59,94 @@ class LinkedInScraper:
 
     def extract_leads_from_page(self):
         """Extract lead data directly from search result cards (raw leads)."""
-        # Scroll to load everything on page
-        self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(2)
+        # Scroll to load everything on page humanly
+        self.bm.human_scroll((400, 800))
+        self.bm.human_mouse_move()
+        self.bm.human_scroll((800, 1600))
+        time.sleep(random.uniform(1.5, 3.0))
         
         leads = []
         try:
             cards = self.driver.find_elements(By.XPATH, config.SELECTORS['search']['result_card'])
-            logger.info(f"Found {len(cards)} result cards on page.")
+            logger.info(f"Found {len(cards)} result cards using selectors.")
             
+            # FALLBACK: If standard cards aren't found, just grab all valid profile links
+            if len(cards) == 0:
+                logger.info("Falling back to raw link extraction...")
+                xpath = "//*[@role='main']//a[contains(@href, '/in/') and not(contains(@href, '/miniProfile')) and not(contains(@href, '/overlay/'))] | //main//a[contains(@href, '/in/') and not(contains(@href, '/miniProfile')) and not(contains(@href, '/overlay/'))] | //div[contains(@class, 'search')]//a[contains(@href, '/in/') and not(contains(@href, '/miniProfile')) and not(contains(@href, '/overlay/'))]"
+                links = self.driver.find_elements(By.XPATH, xpath)
+                seen_urls = set()
+                
+                for link in links:
+                    try:
+                        href = link.get_attribute('href').split('?')[0]
+                        if not href or href in seen_urls or "/in/" not in href:
+                            continue
+                        
+                        seen_urls.add(href)
+                        profile_id = href.replace("https://www.linkedin.com/in/", "").strip("/")
+                        
+                        # Skeleton lead (rest will be filled when visiting profile)
+                        leads.append({
+                            "Full Name": "Pending...",
+                            "Location": "",
+                            "Profession": "",
+                            "LinkedIn ID": profile_id,
+                            "Profile URL": href,
+                            "Work Status": "Unknown",
+                            "Email": "",
+                            "Phone": ""
+                        })
+                    except:
+                        pass
+                
+                logger.info(f"Found {len(leads)} raw profile links via fallback.")
+                return leads
+
+            # Standard card extraction
             for card in cards:
                 try:
-                    # 1. Profile Link & ID
-                    link_elem = card.find_element(By.XPATH, config.SELECTORS['search']['link'])
-                    profile_url = link_elem.get_attribute('href').split('?')[0]
-                    profile_id = profile_url.replace("https://www.linkedin.com/in/", "").strip("/")
-                    
-                    # 2. Name
+                    # 1. Name and Profile Link
                     name = ""
+                    profile_url = ""
+                    
+                    # Try title link first (most accurate)
                     try:
-                        name_elem = card.find_element(By.XPATH, config.SELECTORS['search']['name'])
-                        name = name_elem.text.strip().split('\n')[0] # Avoid multi-line names
-                    except: pass
+                        name_elem = card.find_element(By.XPATH, ".//span[contains(@class, 'entity-result__title-text')]//a[contains(@href, '/in/')]")
+                        name = name_elem.text.strip().split('\n')[0]
+                        profile_url = name_elem.get_attribute('href').split('?')[0]
+                    except:
+                        pass
+                        
+                    # Fallback to lockup title
+                    if not profile_url:
+                        try:
+                            name_elem = card.find_element(By.XPATH, ".//a[@data-view-name='search-result-lockup-title']")
+                            name = name_elem.text.strip().split('\n')[0]
+                            profile_url = name_elem.get_attribute('href').split('?')[0]
+                        except:
+                            pass
+                            
+                    # Fallback to any /in/ link inside the card that has text
+                    if not profile_url:
+                        try:
+                            links = card.find_elements(By.XPATH, ".//a[contains(@href, '/in/') and not(contains(@href, '/miniProfile')) and not(contains(@href, '/overlay/'))]")
+                            for link in links:
+                                if link.text.strip():
+                                    name = link.text.strip().split('\n')[0]
+                                    profile_url = link.get_attribute('href').split('?')[0]
+                                    break
+                            # If no text links, just take the first one
+                            if not profile_url and links:
+                                profile_url = links[0].get_attribute('href').split('?')[0]
+                        except:
+                            pass
+                            
+                    if not profile_url:
+                        logger.warning("Could not find profile URL in card.")
+                        continue
+                        
+                    profile_id = profile_url.replace("https://www.linkedin.com/in/", "").strip("/")
                     
                     # 3. Headline/Profession & Location
                     headline = ""
@@ -146,11 +212,11 @@ class LinkedInScraper:
                         "Phone": ""  
                     }
                     
-                    if name and profile_url:
-                        logger.info(f"Captured: {name} | Location: {location} | Profession: {headline}")
+                    if profile_url:
+                        logger.info(f"Captured Profile URL: {profile_url}")
                         leads.append(lead_data)
                     else:
-                        logger.debug(f"Skipping incomplete card: Name={name}, URL={profile_url}")
+                        logger.debug(f"Skipping incomplete card (no URL found)")
                         
                 except Exception as e:
                     logger.debug(f"Error parsing result card: {e}")
@@ -180,10 +246,14 @@ class LinkedInScraper:
                     logger.info("Next button is disabled. Reached end of results.")
                     return False
 
-                # 2. Strategic Scrolling
-                # Scroll to button and a bit more to ensure it's not covered by footer
+                # 2. Strategic Scrolling and hover
                 self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", next_button)
-                time.sleep(1.5)
+                time.sleep(random.uniform(0.8, 1.5))
+                try:
+                    from selenium.webdriver.common.action_chains import ActionChains
+                    ActionChains(self.driver).move_to_element(next_button).perform()
+                    time.sleep(random.uniform(0.3, 0.8))
+                except: pass
                 
                 # 3. Try standard click first
                 try:
@@ -193,7 +263,7 @@ class LinkedInScraper:
                     self.driver.execute_script("arguments[0].click();", next_button)
                 
                 logger.info("Successfully clicked Next page.")
-                time.sleep(5) # Wait for page to load
+                time.sleep(random.uniform(4.0, 6.0)) # Wait for page to load
                 return True
             else:
                 logger.warning("Next button not found on page.")
@@ -206,29 +276,75 @@ class LinkedInScraper:
         """Navigate to profile and extract contact information."""
         logger.info(f"Visiting profile for contact info: {profile_url}")
         self.bm.navigate(profile_url)
-        time.sleep(random.uniform(3, 5))
+        time.sleep(random.uniform(1.5, 3.0))
+        self.bm.human_scroll((100, 300))
+        self.bm.human_mouse_move()
+        time.sleep(random.uniform(1.5, 3.0))
         return self._get_contact_info()
 
     def scrape_profile(self, profile_url):
         """Full profile extraction (Legacy/Fallback)."""
         self.metrics.increment('leads_seen')
         self.bm.navigate(profile_url)
-        time.sleep(random.uniform(3, 5))
+        time.sleep(random.uniform(1.5, 3.0))
+        self.bm.human_scroll((100, 300))
+        self.bm.human_mouse_move()
+        time.sleep(random.uniform(1.5, 3.0))
 
         # Basic data extraction
         location_text = self._safe_get_text(config.SELECTORS['profile']['location'])
-        is_usa = "united states" in location_text.lower() or "usa" in location_text.lower()
-        is_open_to_work = self.bm.find_element(config.SELECTORS['profile']['open_to_work_badge']) is not None
+        headline = self._safe_get_text(config.SELECTORS['profile']['headline'])
+        description = self._safe_get_text(config.SELECTORS['profile'].get('description', ""))
+        
+        # Broaden USA check to include states and regions since LinkedIn omits "United States" sometimes
+        location_lower = location_text.lower()
+        usa_identifiers = [
+            "united states", "usa", "us", "bay area", "silicon valley", "greater", 
+            "alabama", "alaska", "arizona", "arkansas", "california", "colorado", "connecticut", 
+            "delaware", "florida", "georgia", "hawaii", "idaho", "illinois", "indiana", "iowa", 
+            "kansas", "kentucky", "louisiana", "maine", "maryland", "massachusetts", "michigan", 
+            "minnesota", "mississippi", "missouri", "montana", "nebraska", "nevada", "new hampshire", 
+            "new jersey", "new mexico", "new york", "north carolina", "north dakota", "ohio", 
+            "oklahoma", "oregon", "pennsylvania", "rhode island", "south carolina", "south dakota", 
+            "tennessee", "texas", "utah", "vermont", "virginia", "washington", "west virginia", 
+            "wisconsin", "wyoming"
+        ]
+        is_usa = any(loc in location_lower for loc in usa_identifiers)
+        
+        is_open_to_work_badge = self.bm.find_element(config.SELECTORS['profile']['open_to_work_badge']) is not None
+        is_open_to_work = is_open_to_work_badge or ("open to work" in headline.lower()) or ("looking for" in headline.lower())
         
         if config.OPEN_TO_WORK_ONLY and not is_open_to_work:
+            logger.debug(f"Skipping profile: Not open to work.")
             return None
 
-        if not is_usa:
+        if not is_usa and location_text: # Only skip if location is actually found and not USA
+            logger.debug(f"Skipping profile due to location not matching USA criteria: {location_text}")
             return None
 
         name = self._safe_get_text(config.SELECTORS['profile']['name'])
-        headline = self._safe_get_text(config.SELECTORS['profile']['headline'])
+        if not name:
+            for xpath in [
+                "//h1[contains(@class, 'text-heading-xlarge')]",
+                "//h1[contains(@class, 'top-card-layout__title')]",
+                "//h1[contains(@class, 'ember-view')]",
+                "//main//h1",
+                "//h1"
+            ]:
+                name = self._safe_get_text(xpath)
+                if name:
+                    break
+        if name:
+            name = re.sub(r"\b(Open to Work|Hiring|Follow|Message|1st|2nd|3rd)\b", "", name, flags=re.IGNORECASE).strip()
+            
         linkedin_id = profile_url.replace("https://www.linkedin.com/in/", "").strip("/")
+        
+        # Last resort fallback: generate name from LinkedIn ID (e.g. john-doe-12345 -> John Doe)
+        if not name and linkedin_id:
+            clean_id = re.sub(r'-\d+$', '', linkedin_id)
+            parts = clean_id.split('-')
+            if len(parts) > 0 and all(p.isalnum() for p in parts):
+                name = " ".join(p.capitalize() for p in parts)
         
         contact_info = self._get_contact_info()
         
@@ -236,6 +352,7 @@ class LinkedInScraper:
             "Full Name": name,
             "Location": location_text,
             "Profession": headline,
+            "Description": description,
             "LinkedIn ID": linkedin_id,
             "Email": contact_info.get('Email', ''),
             "Phone": contact_info.get('Phone', ''),
@@ -243,14 +360,37 @@ class LinkedInScraper:
             "Profile URL": profile_url
         }
         
+        if name:
+            lead_data["Full Name"] = name
+        if location_text:
+            lead_data["Location"] = location_text
+        if headline:
+            lead_data["Profession"] = headline
+            lead_data["Work Status"] = self.processor.extract_work_status(headline)
+            
+        if contact_info.get('Email'):
+            lead_data["Email"] = contact_info['Email']
+        if contact_info.get('Phone'):
+            lead_data["Phone"] = contact_info['Phone']
+            
         return lead_data
 
-    def _safe_get_text(self, xpath):
-        try:
-            elem = self.bm.find_element(xpath)
-            return elem.text.strip() if elem else ""
-        except:
+    def _safe_get_text(self, xpath_selector):
+        if not xpath_selector:
             return ""
+        # Split by '|' to process xpaths sequentially for true priority/fallback order
+        xpaths = [x.strip() for x in xpath_selector.split('|')]
+        for xpath in xpaths:
+            try:
+                elements = self.driver.find_elements(By.XPATH, xpath)
+                for elem in elements:
+                    if elem.is_displayed():
+                        text = elem.text.strip()
+                        if text:
+                            return text
+            except Exception as e:
+                logger.debug(f"Error checking xpath {xpath}: {e}")
+        return ""
 
     def _get_contact_info(self):
         """Click 'Contact info' and extract data."""
@@ -259,14 +399,26 @@ class LinkedInScraper:
             # 1. Click the link
             contact_link = self.bm.find_element(config.SELECTORS['profile']['contact_info_link'])
             if contact_link:
+                # Humanize hover before clicking
+                try:
+                    from selenium.webdriver.common.action_chains import ActionChains
+                    ActionChains(self.driver).move_to_element(contact_link).perform()
+                    time.sleep(random.uniform(0.5, 1.2))
+                except: pass
+                
                 contact_link.click()
-                time.sleep(3)  # Wait for modal animation
+                time.sleep(random.uniform(2.5, 4.0))  # Wait for modal animation
                 
                 # 2. Extract Email
                 try:
                     email_elem = self.bm.find_element(config.SELECTORS['contact_info']['email'], timeout=5)
                     if email_elem:
-                        data['Email'] = email_elem.text.strip()
+                        email_text = email_elem.text.strip()
+                        if not email_text:
+                            href = email_elem.get_attribute("href")
+                            if href and "mailto:" in href:
+                                email_text = href.replace("mailto:", "")
+                        data['Email'] = email_text
                 except: pass
 
                 # 3. Extract Phone

@@ -52,6 +52,12 @@ class StorageManager:
                 extraction_date TIMESTAMP
             )
         """)
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS processed_ids (
+                linkedin_id VARCHAR PRIMARY KEY,
+                processed_date TIMESTAMP
+            )
+        """)
 
     def load_processed_ids(self):
         """Load previously processed LinkedIn IDs from DuckDB."""
@@ -61,6 +67,10 @@ class StorageManager:
             
             results = con.execute("SELECT linkedin_id FROM leads").fetchall()
             for row in results:
+                self.processed_ids.add(row[0])
+                
+            results_processed = con.execute("SELECT linkedin_id FROM processed_ids").fetchall()
+            for row in results_processed:
                 self.processed_ids.add(row[0])
             
             logger.info(f"Loaded {len(self.processed_ids)} previously processed IDs from DuckDB ({self.db_file})")
@@ -72,6 +82,23 @@ class StorageManager:
     def is_processed(self, linkedin_id):
         """Check if a lead has already been processed."""
         return linkedin_id in self.processed_ids
+
+    def mark_processed(self, linkedin_id):
+        """Mark a linkedin ID as processed, regardless of whether it was saved as a lead or skipped."""
+        if not linkedin_id: return
+        self.processed_ids.add(linkedin_id)
+        try:
+            con = duckdb.connect(self.db_file)
+            self._ensure_db_schema(con)
+            # Use INSERT ON CONFLICT for DuckDB
+            con.execute("""
+                INSERT INTO processed_ids (linkedin_id, processed_date) 
+                VALUES (?, ?) 
+                ON CONFLICT (linkedin_id) DO NOTHING
+            """, (linkedin_id, datetime.now()))
+            con.close()
+        except Exception as e:
+            logger.error(f"Error marking ID as processed in DB: {e}")
 
     def save_lead(self, lead_data, keyword):
         """Save lead data to DuckDB, JSON, and CSV."""
