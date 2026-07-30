@@ -294,6 +294,7 @@ class LinkedInScraper:
         # Basic data extraction
         location_text = self._safe_get_text(config.SELECTORS['profile']['location'])
         headline = self._safe_get_text(config.SELECTORS['profile']['headline'])
+        description = self._safe_get_text(config.SELECTORS['profile'].get('description', ""))
         
         # Broaden USA check to include states and regions since LinkedIn omits "United States" sometimes
         location_lower = location_text.lower()
@@ -323,9 +324,18 @@ class LinkedInScraper:
 
         name = self._safe_get_text(config.SELECTORS['profile']['name'])
         if not name:
-            try:
-                name = self.driver.find_element(By.XPATH, "//h1").text.strip()
-            except: pass
+            for xpath in [
+                "//h1[contains(@class, 'text-heading-xlarge')]",
+                "//h1[contains(@class, 'top-card-layout__title')]",
+                "//h1[contains(@class, 'ember-view')]",
+                "//main//h1",
+                "//h1"
+            ]:
+                name = self._safe_get_text(xpath)
+                if name:
+                    break
+        if name:
+            name = re.sub(r"\b(Open to Work|Hiring|Follow|Message|1st|2nd|3rd)\b", "", name, flags=re.IGNORECASE).strip()
             
         linkedin_id = profile_url.replace("https://www.linkedin.com/in/", "").strip("/")
         
@@ -342,6 +352,7 @@ class LinkedInScraper:
             "Full Name": name,
             "Location": location_text,
             "Profession": headline,
+            "Description": description,
             "LinkedIn ID": linkedin_id,
             "Email": contact_info.get('Email', ''),
             "Phone": contact_info.get('Phone', ''),
