@@ -11,11 +11,12 @@
         "profile_link": "//a[contains(@href, '/in/') and not(contains(@href, 'miniProfile'))]"
     },
     "profile": {
-        "name": "//h1[contains(@class, 'text-heading-xlarge') or contains(@class, 'pv-top-card-section__name')] | //h2[contains(@class, 'bb19522d')]",
+        "name": "//h1[contains(@class, 'text-heading-xlarge') or contains(@class, 'pv-top-card-section__name')]//span[@aria-hidden='true'] | //h2[contains(@class, 'bb19522d')]//span[@aria-hidden='true']",
         "headline": "//div[contains(@class, 'text-body-medium')] | //p[contains(@class, 'c27819ab')]",
         "location": "//span[contains(@class, 'text-body-small inline t-black--light break-words')] | //p[contains(@class, 'bc7258b1')]",
         "contact_info_link": "//a[@id='top-card-text-details-contact-info'] | //a[text()='Contact info']",
-        "open_to_work_badge": "//a[contains(@href, '/details/open-to-work/')] | //img[contains(@src, 'AAYQAQSOAAgAAQAAAAAAAB-zrMZEDXI2T62PSuT6kpB6qg')]"
+        "open_to_work_badge": "//a[contains(@href, '/details/open-to-work/')] | //img[contains(@src, 'AAYQAQSOAAgAAQAAAAAAAB-zrMZEDXI2T62PSuT6kpB6qg')]",
+        "description": "//div[@id='about']//following-sibling::div | //section[contains(@id, 'about')]//span[@aria-hidden='true'] | //section[contains(@id, 'about')]"
     },
     "contact_info": {
         "modal": "//div[@role='dialog']",
@@ -25,7 +26,7 @@
     },
     "search": {
         "result_card": "//div[@data-view-name='people-search-result']",
-        "name": ".//a[@data-view-name='search-result-lockup-title']",
+        "name": ".//a[@data-view-name='search-result-lockup-title']//span[@aria-hidden='true']",
         "link": ".//a[contains(@href, '/in/')]",
         "headline": ".//*[contains(@class, 'entity-result__primary-subtitle')]",
         "location": ".//*[contains(@class, 'entity-result__secondary-subtitle')]",

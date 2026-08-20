@@ -32,7 +32,7 @@ class StorageManager:
         # Headers for CSV
         self.csv_headers = [
             "Full Name", "Location", "Profession", "LinkedIn ID", 
-            "Email", "Phone", "Work Status", "Profile URL", "Extraction Date"
+            "Email", "Phone", "Work Status", "Description", "Profile URL", "Extraction Date"
         ]
         
         self.load_processed_ids()
@@ -48,10 +48,14 @@ class StorageManager:
                 profession VARCHAR,
                 location VARCHAR,
                 work_status VARCHAR,
+                description VARCHAR,
                 profile_url VARCHAR,
                 extraction_date TIMESTAMP
             )
         """)
+        try:
+            con.execute("ALTER TABLE leads ADD COLUMN description VARCHAR")
+        except: pass
 
     def load_processed_ids(self):
         """Load previously processed LinkedIn IDs from DuckDB."""
@@ -105,7 +109,7 @@ class StorageManager:
         
         con.execute("""
             INSERT OR REPLACE INTO leads 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             lead_data.get("LinkedIn ID"),
             lead_data.get("Full Name"),
@@ -114,6 +118,7 @@ class StorageManager:
             lead_data.get("Profession"),
             lead_data.get("Location"),
             lead_data.get("Work Status"),
+            lead_data.get("Description"),
             lead_data.get("Profile URL"),
             datetime.now()
         ))
