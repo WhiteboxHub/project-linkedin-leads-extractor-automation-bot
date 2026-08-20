@@ -203,11 +203,14 @@ class LinkedInScraper:
             return False
 
     def _get_contact_info_from_profile(self, profile_url):
-        """Navigate to profile and extract contact information."""
+        """Navigate to profile and extract contact information and profile description."""
         logger.info(f"Visiting profile for contact info: {profile_url}")
         self.bm.navigate(profile_url)
         time.sleep(random.uniform(3, 5))
-        return self._get_contact_info()
+        description = self._safe_get_text(config.SELECTORS['profile']['description'])
+        data = self._get_contact_info()
+        data['Description'] = description
+        return data
 
     def scrape_profile(self, profile_url):
         """Full profile extraction (Legacy/Fallback)."""
@@ -240,6 +243,7 @@ class LinkedInScraper:
             "Email": contact_info.get('Email', ''),
             "Phone": contact_info.get('Phone', ''),
             "Work Status": self.processor.extract_work_status(headline),
+            "Description": self._safe_get_text(config.SELECTORS['profile']['description']),
             "Profile URL": profile_url
         }
         
